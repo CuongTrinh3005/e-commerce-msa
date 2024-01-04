@@ -4,6 +4,7 @@ import com.research.orderservice.dto.OrderRequest;
 import com.research.orderservice.dto.OrderResponse;
 import com.research.orderservice.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,7 +18,7 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public void placeAnOrder(@RequestBody OrderRequest orderRequest){
+    public void placeAnOrder(@RequestBody OrderRequest orderRequest) throws BadRequestException {
         orderService.placeOrder(orderRequest);
     }
 

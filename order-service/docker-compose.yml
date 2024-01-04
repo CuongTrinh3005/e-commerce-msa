@@ -12,12 +12,12 @@ services:
       - MYSQL_ROOT_PASSWORD=pass
     restart: always
 
-  adminer:
-    image: adminer
-    container_name: adminer
-    restart: always
-    ports:
-      - '1200:8080'
+#  adminer:
+#    image: adminer
+#    container_name: adminer
+#    restart: always
+#    ports:
+#      - '1200:8080'
 #      image: lscr.io/linuxserver/mysql-workbench:latest
 #      container_name: mysql-workbench
 #      environment:

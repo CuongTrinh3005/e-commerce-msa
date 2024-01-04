@@ -26,15 +26,8 @@ public class InventoryServiceApplication {
 					.quantity(10)
 					.build();
 
-			if(!inventoryRepository.existsBySkuCode(inventory.getSkuCode())){
-				inventoryRepository.save(inventory);
-				System.out.println("Save " + inventory.getSkuCode() + " successfully!");
-			}
-
-			if(!inventoryRepository.existsBySkuCode(inventory2.getSkuCode())){
-				inventoryRepository.save(inventory2);
-				System.out.println("Save " + inventory2.getSkuCode() + " successfully!");
-			}
+			inventoryRepository.save(inventory);
+			inventoryRepository.save(inventory2);
 		};
 	}
 }
