@@ -25,7 +25,7 @@ import java.util.UUID;
 @Slf4j
 public class OrderService {
     private final OrderRepository orderRepository;
-    private final WebClient webClient;
+    private final WebClient.Builder webClientBuilder;
 
     public void placeOrder(OrderRequest orderRequest) throws BadRequestException {
         List<OrderLineItems> orderItems = orderRequest.getOrderLineItemsDtoList().stream().map(this::convertToModel).toList();
@@ -40,8 +40,8 @@ public class OrderService {
 
         // Check the items is in stock or not
 
-        InventoryResponse[] inventoryResponse = webClient.get()
-                .uri("http://localhost:8082/api/v1/inventory",
+        InventoryResponse[] inventoryResponse = webClientBuilder.build().get()
+                .uri("http://inventory-service/api/v1/inventory",
                         uriBuilder -> uriBuilder.queryParam("skuCode", skuCodes).build())
                 .retrieve()
                 .bodyToMono(InventoryResponse[].class)
