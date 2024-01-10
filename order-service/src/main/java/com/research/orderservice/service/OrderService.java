@@ -4,6 +4,7 @@ import com.research.orderservice.dto.InventoryResponse;
 import com.research.orderservice.dto.OrderLineItemsDto;
 import com.research.orderservice.dto.OrderRequest;
 import com.research.orderservice.dto.OrderResponse;
+import com.research.orderservice.event.OrderPublishRecord;
 import com.research.orderservice.model.Order;
 import com.research.orderservice.model.OrderLineItems;
 import com.research.orderservice.repository.OrderRepository;
@@ -11,9 +12,11 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.coyote.BadRequestException;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -26,8 +29,9 @@ import java.util.UUID;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final WebClient.Builder webClientBuilder;
+    private final KafkaTemplate<String, OrderPublishRecord> kafkaTemplate;
 
-    public void placeOrder(OrderRequest orderRequest) throws BadRequestException {
+    public String placeOrder(OrderRequest orderRequest) throws BadRequestException {
         List<OrderLineItems> orderItems = orderRequest.getOrderLineItemsDtoList().stream().map(this::convertToModel).toList();
         Order order = Order.builder()
                 .orderNumber(UUID.randomUUID().toString())
@@ -70,8 +74,15 @@ public class OrderService {
             throw new IllegalStateException("Not all items exist. Please try again");
         }
 
-        orderRepository.save(order);
-        log.info("Order placed successfully!");
+        try{
+            orderRepository.save(order);
+            log.info("Order placed successfully at " + LocalDateTime.now());
+            kafkaTemplate.send("notification-topic", new OrderPublishRecord(order.getOrderNumber()));
+            return "Order placed successfully!";
+        }catch (Exception ex){
+            log.error("Something went wrong - " + ex.getMessage());
+            return "";
+        }
     }
 
     public List<OrderResponse> getOrders() {
