@@ -1,5 +1,95 @@
 version: '3'
 services:
+  mongo-db:
+    image: mongo
+    container_name: mongo_db
+    ports:
+      - '27017:27017'
+    expose:
+      - '27017'
+    volumes:
+      - product-mongo-data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+
+  mongo-express:
+    image: mongo-express
+    container_name: mongo-express
+    depends_on:
+      - mongo-db
+    ports:
+      - '1200:8081'
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password
+      - ME_CONFIG_MONGODB_SERVER=mongo-db # mongoDB container's name
+
+  order-mysql-db:
+    image: mysql
+    container_name: order-mysql-db
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - '3306:3306'
+    volumes:
+      - order-mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=pass
+      - MYSQL_DATABASE=orders
+    restart: always
+
+  inventory-mysql-db:
+    image: mysql
+    container_name: inventory-mysql-db
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - '13306:13306'
+    expose:
+      - '13306'
+    volumes:
+      - inventory-mysql-data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=pass
+      - MYSQL_DATABASE=inventory
+    restart: always
+
+  ## Keycloak Config with Mysql database
+  keycloak-mysql:
+    container_name: keycloak-mysql
+    image: mysql:5.7
+    volumes:
+      - mysql_keycloak_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: keycloak
+      MYSQL_USER: keycloak
+      MYSQL_PASSWORD: password
+
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:18.0.0
+    command: [ "start-dev", "--import-realm" ]
+    environment:
+      DB_VENDOR: MYSQL
+      DB_ADDR: mysql
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8181:8181"
+    volumes:
+      - realms-data:/opt/keycloak/data/import/
+    depends_on:
+      - keycloak-mysql
+  ## Zipkin
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     environment:
@@ -21,3 +111,85 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  ## Eureka Server
+  eureka-server:
+    image: cuongtrinhquoc/eureka-server:latest
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - zipkin
+
+  api-gateway:
+    image: cuongtrinhquoc/api-gateway:latest
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_SECURITY= TRACE
+    depends_on:
+      - zipkin
+      - eureka-server
+      - keycloak
+
+  product-service:
+    image: cuongtrinhquoc/product-service:latest
+    container_name: product-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - mongo-db
+      - eureka-server
+      - api-gateway
+
+  order-service:
+    image: cuongtrinhquoc/order-service:latest
+    container_name: order-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://order-mysql-db:3306/orders
+    depends_on:
+      - order-mysql-db
+      - kafka
+      - zipkin
+      - eureka-server
+      - api-gateway
+
+  inventory-service:
+    image: cuongtrinhquoc/inventory-service:latest
+    container_name: inventory-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://inventory-mysql-db:13306/inventory
+    depends_on:
+      - inventory-mysql-db
+      - eureka-server
+      - api-gateway
+
+  notification-service:
+    image: cuongtrinhquoc/notification-service:latest
+    container_name: notification-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      - inventory-mysql-db
+      - kafka
+      - eureka-server
+      - api-gateway
+
+volumes:
+  product-mongo-data:
+  order-mysql-data:
+  inventory-mysql-data:
+  mysql_keycloak_data:
+  realms-data:
